@@ -1,0 +1,121 @@
+import pandas as pd
+import pyecharts
+pyecharts.globals._WarningControl.ShowWarning = False
+import warnings
+warnings.filterwarnings('ignore')
+import os
+from pyecharts.components import Image
+from pyecharts import options as opts
+from pyecharts.charts import Bar, Grid, Line, Liquid, Page, Pie
+from pyecharts.commons.utils import JsCode
+from pyecharts.components import Table
+from pyecharts.faker import Faker
+
+#播放数据
+def sort_watch(path):   
+    text = pd.read_csv(path,encoding='utf-8')
+    df = text.sort_values(by=["播放量(万)"], ascending=False)
+    data1 = df['播放量(万)'].tolist()
+    data = df['番名'].tolist()
+    ABS=[]
+    for i in range(0,len(data1)):
+        abs=[]
+        abs.append(data[i])
+        abs.append(data1[i])
+        ABS.append(abs)
+    return ABS 
+
+
+#追番数据
+def sort_follow(path):
+    text = pd.read_csv(path,encoding='utf-8')
+    df = text.sort_values(by=["追番人数(万)"], ascending=False)
+    data1 = df['追番人数(万)'].tolist()
+    data = df['番名'].tolist()
+    ABS=[]
+    for i in range(0,len(data1)):
+        abs=[]
+        abs.append(data[i])
+        abs.append(data1[i])
+        ABS.append(abs)
+    return ABS 
+
+
+def split(str):   #分离函数解决名字过长问题
+    max=6
+    name = '\n'.join([str[i:i+max] for i in range(0,len(str),max)])
+    return name
+
+
+def data_resource(data_dir):  #整合数据
+    file_list = os.listdir(data_dir)   # 获取文件列表
+    name_set = set()   # 存储所有人名的集合（集合中元素无重复）
+    # 循环读取每个文件的数据，并将人名添加到 name_set 中
+    for file_name in file_list:
+        if file_name.endswith('.csv'):   # 只读取 csv 文件
+            file_path = os.path.join(data_dir, file_name)
+            df = pd.read_csv(file_path, header=0)
+            name_set.update(set(df.iloc[:, 0]))   # 将人名添加到集合中
+    # 根据 name_set 中的人名，将每个文件的数据整理成新的 DataFrame
+    result_df = pd.DataFrame(columns=['Name', 'Date', 'PV', 'Follower'])   # 定义存储结果的 DataFrame
+    for name in name_set:
+        for file_name in file_list:
+            if file_name.endswith('.csv'):   # 只读取 csv 文件
+                file_path = os.path.join(data_dir, file_name)
+                df = pd.read_csv(file_path, header=None)
+                df_selected = df[df.iloc[:, 0] == name]   # 筛选出当前人名的行
+                if len(df_selected) == 0:
+                    continue   # 如果没有找到该人名，则跳过
+                date = file_name[:-4]   # 取 csv 文件名中的日期
+                pv = float(df_selected.iloc[0, 1])   # 取播放量
+                follower = float(df_selected.iloc[0, 2])   # 取追番数
+                result_df = result_df.append({'Name': name, 'Date': date, 'PV': pv, 'Follower': follower}, ignore_index=True)
+    # 输出整理后的数据
+    return result_df
+def Image_atd(LIST) -> Image:
+    #传入列表，列表内容举例['名侦探柯南（中配）', 8, 125.0, 0.0625]
+    img = Image()
+    img_src = (
+        "./picture/"
+        "{}.jpg".format(LIST[0]))
+    img.add(
+        src=img_src,
+        style_opts={"width": "300px", "height": "400px"},
+    )
+    img.set_global_opts(title_opts=ComponentTitleOpts(title='{}天平均每日增长:\n播放(万):{} 追番(百):{}\n{}'
+                                                       .format(LIST[1],round(LIST[2],4),round(LIST[3],4)*100,LIST[0])))
+    return img
+#折线图组件
+def Line_atd(datas):
+    #传入列表格式：datas=data.loc[data['Name'] == QB1[0][0]].values.tolist()传入的多天的数据
+    l = (
+        Line()
+        .add_xaxis([data[1][-5:] for data in datas])
+        .add_yaxis("播放量（万）", [round(data[2],1) for data in datas],color='#FFC0CB')
+        .add_yaxis("追番数（百）", [round(data[3]*100,1) for data in datas],color='#39c5bb')
+        .set_global_opts(yaxis_opts=opts.AxisOpts(min_='dataMin',axislabel_opts=opts.LabelOpts(font_size = 16)),
+                         xaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(font_size = 16)),
+                         title_opts=opts.TitleOpts(title="{}:({})".format(datas[0][0],len(datas)),
+                                                   title_textstyle_opts=opts.LabelOpts(color='red')),
+                         )
+        .set_series_opts(label_opts=opts.LabelOpts(font_size=18))
+            )
+    return l
+
+#QB列表里的内容，每列第一个是名字，第二个是天数，第三个是总播放量增长率，第四个是追番增长率，考虑到取消追番的因素，为负值是正常的
+#计算比率（QB1综合前五，QB2取关率前五）
+#冒泡排序 
+def fun1(QB):
+    count = len(QB)
+    for i in range(count):
+        for j in range(i + 1, count):
+            if (QB[i][2]+QB[i][3]*50) < QB[j][2]+QB[j][3]*50:
+                QB[i], QB[j] = QB[j], QB[i]
+    return QB
+def fun2(QB):
+    count=len(QB)
+    for i in range(count):
+        for j in range(i + 1, count):
+            if QB[i][3] > QB[j][3]:
+                QB[i], QB[j] = QB[j], QB[i]
+    return QB
